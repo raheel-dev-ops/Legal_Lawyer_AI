@@ -1,0 +1,5134 @@
+openapi: 3.0.3
+info:
+  title: Legal Lawyer AI API
+  version: "1.0.0"
+  description: |
+    API specification for Legal Lawyer AI backend.
+
+    Safe Mode:
+    - Only endpoints that declare the `X-Safe-Mode` header enforce it.
+    - When `X-Safe-Mode: 1`, those endpoints block writes and return 403.
+servers:
+  - url: https://gowaned-beckham-unlawful.ngrok-free.dev
+  - url: http://127.0.0.1:5000
+tags:
+  - name: Auth
+  - name: Users
+  - name: EmergencyContacts
+  - name: Rights
+  - name: Templates
+  - name: Pathways
+  - name: Checklists
+  - name: Drafts
+  - name: Chat
+  - name: Reminders
+  - name: Notifications
+  - name: Admin
+  - name: Content
+  - name: Support
+  - name: Lawyers
+  - name: Health
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    safeModeHeader:
+      type: apiKey
+      in: header
+      name: X-Safe-Mode
+      description: "Set to '1' to enable safe mode (read-only, no persistence)"
+  schemas:
+    AnyObject:
+      type: object
+      additionalProperties: true
+    Error:
+      type: object
+      properties:
+        message: { type: string }
+        error: { type: string }
+        details: { $ref: "#/components/schemas/AnyObject" }
+    RateLimitError:
+      type: object
+      properties:
+        message: { type: string, example: "Rate limit exceeded" }
+        error: { type: string, example: "Too Many Requests" }
+    OkIdResponse:
+      type: object
+      required: [id]
+      properties:
+        id:
+          type: integer
+          format: int64
+    PaginationMeta:
+      type: object
+      required: [page, perPage, total, totalPages, hasNext, hasPrev]
+      properties:
+        page: { type: integer, minimum: 1 }
+        perPage: { type: integer, minimum: 1, maximum: 100 }
+        total: { type: integer, minimum: 0 }
+        totalPages: { type: integer, minimum: 0 }
+        hasNext: { type: boolean }
+        hasPrev: { type: boolean }
+    # User Schemas
+    UserPublicSchema:
+      type: object
+      required:
+        [
+          id,
+          name,
+          email,
+          phone,
+          cnic,
+          fatherName,
+          fatherCnic,
+          motherName,
+          motherCnic,
+          city,
+          gender,
+          age,
+          totalSiblings,
+          brothers,
+          sisters,
+          avatarPath,
+          timezone,
+          language,
+          isAdmin,
+          isEmailVerified,
+        ]
+      properties:
+        id: { type: integer, format: int64 }
+        name: { type: string, example: "Ahmed Khan" }
+        email: { type: string, format: email, example: "ahmed@example.com" }
+        phone: { type: string, example: "03001234567" }
+        cnic: { type: string, example: "12345-1234567-1" }
+        fatherName: { type: string, nullable: true }
+        fatherCnic: { type: string, nullable: true }
+        motherName: { type: string, nullable: true }
+        motherCnic: { type: string, nullable: true }
+        city: { type: string, nullable: true }
+        gender: { type: string, nullable: true }
+        age: { type: integer, nullable: true }
+        avatarPath: { type: string, nullable: true }
+        timezone: { type: string, example: "Asia/Karachi" }
+        language: { type: string, enum: [en, ur], example: "en" }
+        totalSiblings: { type: integer }
+        brothers: { type: integer }
+        sisters: { type: integer }
+        isAdmin: { type: boolean }
+        isEmailVerified: { type: boolean }
+
+    UserAdminSchema:
+      allOf:
+        - $ref: "#/components/schemas/UserPublicSchema"
+        - type: object
+          properties:
+            fatherName: { type: string, nullable: true }
+            fatherCnic: { type: string, nullable: true }
+            motherName: { type: string, nullable: true }
+            motherCnic: { type: string, nullable: true }
+            totalSiblings: { type: integer, default: 0 }
+            brothers: { type: integer, default: 0 }
+            sisters: { type: integer, default: 0 }
+            isDeleted: { type: boolean }
+            deletedAt: { type: string, format: date-time, nullable: true }
+            updatedAt: { type: string, format: date-time, nullable: true }
+
+    # Auth Response Schemas
+    SignupResponse:
+      type: object
+      required: [user, accessToken, refreshToken]
+      properties:
+        user:
+          type: object
+          required: [id, name, email, isEmailVerified]
+          properties:
+            id: { type: integer, format: int64 }
+            name: { type: string }
+            email: { type: string, format: email }
+            isEmailVerified: { type: boolean }
+        accessToken:
+          { type: string, example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." }
+        refreshToken:
+          { type: string, example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." }
+
+    LoginResponse:
+      type: object
+      required: [accessToken, refreshToken, isEmailVerified]
+      properties:
+        accessToken: { type: string }
+        refreshToken: { type: string }
+        isEmailVerified: { type: boolean }
+
+    TokenResponse:
+      type: object
+      required: [accessToken, refreshToken]
+      properties:
+        accessToken: { type: string }
+        refreshToken: { type: string }
+
+    VerifyEmailResponse:
+      type: object
+      required: [verified]
+      properties:
+        verified: { type: boolean }
+
+    ChangePasswordResponse:
+      type: object
+      required: [message, accessToken, refreshToken]
+      properties:
+        message: { type: string, example: "Password updated" }
+        accessToken: { type: string }
+        refreshToken: { type: string }
+
+    # Content Schemas
+    RightSchema:
+      type: object
+      required: [id, topic, body, language]
+      properties:
+        id: { type: integer, format: int64 }
+        topic: { type: string, maxLength: 200 }
+        body: { type: string }
+        category: { type: string, maxLength: 120, nullable: true }
+        language: { type: string, enum: [en, ur] }
+        tags: { type: array, items: { type: string } }
+        createdAt: { type: string, format: date-time, nullable: true }
+        updatedAt: { type: string, format: date-time, nullable: true }
+
+    TemplateSchema:
+      type: object
+      required: [id, title, body, language]
+      properties:
+        id: { type: integer, format: int64 }
+        title: { type: string, maxLength: 200 }
+        description: { type: string, nullable: true }
+        body: { type: string, description: "Template with {{placeholders}}" }
+        category: { type: string, maxLength: 120, nullable: true }
+        language: { type: string, enum: [en, ur] }
+        tags: { type: array, items: { type: string } }
+        createdAt: { type: string, format: date-time, nullable: true }
+        updatedAt: { type: string, format: date-time, nullable: true }
+
+    PathwaySchema:
+      type: object
+      required: [id, title, steps, language]
+      properties:
+        id: { type: integer, format: int64 }
+        title: { type: string, maxLength: 200 }
+        summary: { type: string, nullable: true }
+        steps:
+          type: array
+          items:
+            type: object
+            properties:
+              step: { type: integer }
+              title: { type: string }
+              description: { type: string }
+        category: { type: string, maxLength: 120, nullable: true }
+        language: { type: string, enum: [en, ur] }
+        tags: { type: array, items: { type: string } }
+    ChecklistCategory:
+      type: object
+      required: [id, title, icon, order]
+      properties:
+        id: { type: integer, format: int64 }
+        title: { type: string }
+        icon: { type: string, nullable: true }
+        order: { type: integer }
+    ChecklistItem:
+      type: object
+      required: [id, categoryId, text, required, order]
+      properties:
+        id: { type: integer, format: int64 }
+        categoryId: { type: integer, format: int64 }
+        text: { type: string }
+        required: { type: boolean }
+        order: { type: integer }
+    DraftListItem:
+      type: object
+      required: [id, title, createdAt]
+      properties:
+        id: { type: integer, format: int64 }
+        title: { type: string }
+        createdAt: { type: string, format: date-time }
+    ActivityEvent:
+      type: object
+      required: [type, payload, createdAt]
+      properties:
+        type: { type: string }
+        payload: { type: object, additionalProperties: true }
+        createdAt: { type: string, format: date-time }
+    ContentManifest:
+      type: object
+      required: [version, files]
+      properties:
+        version: { type: integer }
+        files:
+          type: object
+          required: [rights, templates]
+          properties:
+            rights:
+              type: object
+              required: [url]
+              properties:
+                url: { type: string }
+            templates:
+              type: object
+              required: [url]
+              properties:
+                url: { type: string }
+    ContentRight:
+      type: object
+      required: [id, topic, body, language, tags]
+      properties:
+        id: { type: integer, format: int64 }
+        topic: { type: string }
+        body: { type: string }
+        category: { type: string, nullable: true }
+        language: { type: string, enum: [en, ur] }
+        tags: { type: array, items: { type: string } }
+    ContentTemplate:
+      type: object
+      required: [id, title, body]
+      properties:
+        id: { type: integer, format: int64 }
+        title: { type: string }
+        category: { type: string, nullable: true }
+        description: { type: string, nullable: true }
+        body: { type: string }
+
+    # Chat Schemas
+    ChatAskRequest:
+      type: object
+      required: [question]
+      properties:
+        question: { type: string, minLength: 1, maxLength: 2000 }
+        conversationId: { type: integer, format: int64, nullable: true }
+        language:
+          { type: string, enum: [en, ur], nullable: true, description: "Override user language" }
+        provider:
+          {
+            type: string,
+            enum: [auto, openai, openrouter, groq, deepseek, grok, anthropic],
+            nullable: true,
+          }
+        model: { type: string, nullable: true }
+
+    ChatAskResponse:
+      type: object
+      required: [answer, contextsUsed]
+      properties:
+        answer: { type: string }
+        conversationId:
+          {
+            type: integer,
+            format: int64,
+            nullable: true,
+            description: "Null in safe mode",
+          }
+        contextsUsed:
+          {
+            type: integer,
+            description: "Number of knowledge chunks used (0 if out-of-domain)",
+          }
+        lawyers:
+          {
+            type: array,
+            items: { $ref: "#/components/schemas/LawyerPublic" },
+            description: "Suggested lawyers based on topic (may be empty)",
+          }
+
+    ConversationSchema:
+      type: object
+      required: [id, title, createdAt, updatedAt, lastMessageSnippet]
+      properties:
+        id: { type: integer, format: int64 }
+        title: { type: string }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        lastMessageSnippet: { type: string, maxLength: 120 }
+
+    PaginatedConversations:
+      type: object
+      required: [page, limit, items]
+      properties:
+        page: { type: integer, minimum: 1 }
+        limit: { type: integer, minimum: 1, maximum: 100 }
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/ConversationSchema" }
+
+    ChatMessageSchema:
+      type: object
+      required: [id, role, content, createdAt]
+      properties:
+        id: { type: integer, format: int64 }
+        role: { type: string, enum: [user, assistant, system] }
+        content: { type: string }
+        createdAt: { type: string, format: date-time }
+
+    ConversationMessagesResponse:
+      type: object
+      required: [conversationId, title, page, limit, items]
+      properties:
+        conversationId: { type: integer, format: int64 }
+        title: { type: string }
+        page: { type: integer }
+        limit: { type: integer }
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/ChatMessageSchema" }
+
+    # Bookmark Schema
+    BookmarkSchema:
+      type: object
+      required: [id, itemType, itemId]
+      properties:
+        id: { type: integer, format: int64 }
+        itemType: { type: string, enum: [right, template, pathway] }
+        itemId: { type: integer, format: int64 }
+
+    # Draft Schemas
+    DraftSchema:
+      type: object
+      required: [id, title, contentText, createdAt]
+      properties:
+        id: { type: integer, format: int64 }
+        title: { type: string }
+        contentText: { type: string }
+        answers: { type: object, additionalProperties: true }
+        userSnapshot: { type: object, additionalProperties: true }
+        createdAt: { type: string, format: date-time }
+    DraftGenerateRequest:
+      type: object
+      required: [templateId, answers, userSnapshot]
+      properties:
+        templateId: { type: integer, format: int64 }
+        answers: { type: object, additionalProperties: true }
+        userSnapshot: { type: object, additionalProperties: true }
+
+    DraftGenerateResponse:
+      type: object
+      required: [id, title, contentText, createdAt]
+      properties:
+        id: { type: integer, format: int64 }
+        title: { type: string }
+        contentText: { type: string }
+        createdAt: { type: string, format: date-time }
+
+    # Reminder Schema
+    ReminderSchema:
+      type: object
+      required: [id, title, scheduledAt, timezone, isDone]
+      properties:
+        id: { type: integer, format: int64 }
+        title: { type: string }
+        notes: { type: string, nullable: true }
+        scheduledAt: { type: string, format: date-time }
+        timezone: { type: string }
+        isDone: { type: boolean }
+
+    # Emergency Contact Schemas
+    EmergencyContact:
+      type: object
+      required: [id, name, relation, phone, countryCode, isPrimary]
+      properties:
+        id: { type: integer, format: int64 }
+        name: { type: string, maxLength: 120 }
+        relation: { type: string, maxLength: 80 }
+        phone: { type: string, description: "Local phone digits (PK format)" }
+        countryCode: { type: string, example: "+92" }
+        isPrimary: { type: boolean }
+        createdAt: { type: string, format: date-time, nullable: true }
+        updatedAt: { type: string, format: date-time, nullable: true }
+
+    EmergencyContactCreateRequest:
+      type: object
+      required: [name, relation, phone, countryCode]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 120 }
+        relation: { type: string, minLength: 1, maxLength: 80 }
+        phone: { type: string, minLength: 5, maxLength: 20 }
+        countryCode: { type: string, minLength: 2, maxLength: 8, example: "+92" }
+        isPrimary: { type: boolean }
+
+    EmergencyContactUpdateRequest:
+      type: object
+      properties:
+        name: { type: string, minLength: 1, maxLength: 120 }
+        relation: { type: string, minLength: 1, maxLength: 80 }
+        phone: { type: string, minLength: 5, maxLength: 20 }
+        countryCode: { type: string, minLength: 2, maxLength: 8, example: "+92" }
+        isPrimary: { type: boolean }
+
+    # Notification Schemas
+    NotificationItem:
+      type: object
+      required: [id, type, title, body, data, scope, createdAt, isRead]
+      properties:
+        id: { type: integer, format: int64 }
+        type: { type: string, example: "content_update" }
+        title: { type: string }
+        body: { type: string }
+        data: { type: object, additionalProperties: true }
+        scope: { type: string, enum: [broadcast, user] }
+        createdAt: { type: string, format: date-time, nullable: true }
+        isRead: { type: boolean }
+        readAt: { type: string, format: date-time, nullable: true }
+
+    NotificationsListResponse:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/NotificationItem" }
+
+    NotificationPreferences:
+      type: object
+      required: [contentUpdates, lawyerUpdates, reminderNotifications]
+      properties:
+        contentUpdates: { type: boolean }
+        lawyerUpdates: { type: boolean }
+        reminderNotifications: { type: boolean }
+
+    NotificationPreferencesUpdate:
+      type: object
+      properties:
+        contentUpdates: { type: boolean }
+        lawyerUpdates: { type: boolean }
+        reminderNotifications: { type: boolean }
+
+    NotificationDeviceTokenRequest:
+      type: object
+      required: [platform, token]
+      properties:
+        platform:
+          type: string
+          enum: [android, ios]
+        token:
+          type: string
+          minLength: 10
+
+    NotificationUnregisterRequest:
+      type: object
+      required: [token]
+      properties:
+        token: { type: string, minLength: 10 }
+
+    # Error Schemas (Industry Best Practice)
+    ValidationErrorResponse:
+      type: object
+      required: [message, errors]
+      properties:
+        message: { type: string, example: "Validation error" }
+        errors:
+          type: object
+          additionalProperties: true
+          example:
+            email: ["Invalid email format"]
+            password: ["Password must be at least 8 characters"]
+
+    ConflictErrorResponse:
+      type: object
+      required: [message, error]
+      properties:
+        message: { type: string, example: "Email already exists" }
+        error: { type: string, example: "Conflict" }
+        field: { type: string, example: "email" }
+
+    NotFoundErrorResponse:
+      type: object
+      required: [message]
+      properties:
+        message: { type: string, example: "Resource not found" }
+        error: { type: string, example: "Not Found" }
+
+    UnauthorizedErrorResponse:
+      type: object
+      required: [message]
+      properties:
+        message: { type: string, example: "Invalid token" }
+        error: { type: string, example: "Unauthorized" }
+
+    ForbiddenErrorResponse:
+      type: object
+      required: [message]
+      properties:
+        message: { type: string, example: "Admin only" }
+        error: { type: string, example: "Forbidden" }
+    SupportContactRequest:
+      type: object
+      required: [fullName, email, phone, subject, description]
+      properties:
+        fullName: { type: string, minLength: 1, maxLength: 200 }
+        email: { type: string, format: email, minLength: 3, maxLength: 255 }
+        phone: { type: string, minLength: 1, maxLength: 50 }
+        subject: { type: string, minLength: 1, maxLength: 200 }
+        description: { type: string, minLength: 1 }
+
+    FeedbackRequest:
+      type: object
+      required: [rating, comment]
+      properties:
+        rating: { type: integer, minimum: 1, maximum: 5 }
+        comment: { type: string, minLength: 1 }
+
+    LawyerPublic:
+      type: object
+      required: [id, name, email, phone, category, profilePicturePath]
+      properties:
+        id: { type: integer, format: int64 }
+        name: { type: string }
+        email: { type: string, format: email }
+        phone: { type: string }
+        category: { type: string }
+        profilePicturePath: { type: string }
+
+    PaginatedLawyersPublic:
+      type: object
+      required: [items, meta]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/LawyerPublic" }
+        meta: { $ref: "#/components/schemas/PaginationMeta" }
+
+    LawyerAdmin:
+      type: object
+      required:
+        [
+          id,
+          fullName,
+          email,
+          phone,
+          category,
+          profilePicturePath,
+          isActive,
+          createdAt,
+          updatedAt,
+        ]
+      properties:
+        id: { type: integer, format: int64 }
+        fullName: { type: string }
+        email: { type: string, format: email }
+        phone: { type: string }
+        category: { type: string }
+        profilePicturePath: { type: string }
+        isActive: { type: boolean }
+        createdAt: { type: string, nullable: true }
+        updatedAt: { type: string, nullable: true }
+
+    PaginatedLawyersAdmin:
+      type: object
+      required: [items, meta]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/LawyerAdmin" }
+        meta: { $ref: "#/components/schemas/PaginationMeta" }
+
+    ContactMessage:
+      type: object
+      required: [id, fullName, email, phone, subject, createdAt]
+      properties:
+        id: { type: integer, format: int64 }
+        fullName: { type: string }
+        email: { type: string, format: email }
+        phone: { type: string }
+        subject: { type: string }
+        description: { type: string }
+        createdAt: { type: string, nullable: true }
+
+    PaginatedContactMessages:
+      type: object
+      required: [items, meta]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/ContactMessage" }
+        meta: { $ref: "#/components/schemas/PaginationMeta" }
+
+    FeedbackListItem:
+      type: object
+      required: [id, userId, rating, commentPreview, isRead, createdAt]
+      properties:
+        id: { type: integer, format: int64 }
+        userId: { type: integer, format: int64 }
+        userEmail: { type: string, format: email, nullable: true }
+        rating: { type: integer, minimum: 1, maximum: 5 }
+        commentPreview: { type: string }
+        isRead: { type: boolean }
+        createdAt: { type: string, nullable: true }
+
+    FeedbackDetail:
+      type: object
+      required: [id, userId, rating, comment, isRead, createdAt]
+      properties:
+        id: { type: integer, format: int64 }
+        userId: { type: integer, format: int64 }
+        userEmail: { type: string, format: email, nullable: true }
+        rating: { type: integer, minimum: 1, maximum: 5 }
+        comment: { type: string }
+        isRead: { type: boolean }
+        createdAt: { type: string, nullable: true }
+
+    PaginatedFeedbackList:
+      type: object
+      required: [items, meta]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/FeedbackListItem" }
+        meta: { $ref: "#/components/schemas/PaginationMeta" }
+
+    FeedbackSummary:
+      type: object
+      required: [avgRating, totalFeedback, unreadCount]
+      properties:
+        avgRating: { type: number, example: 4.3 }
+        totalFeedback: { type: integer, example: 120 }
+        unreadCount: { type: integer, example: 7 }
+  parameters:
+    LanguageParam:
+      in: query
+      name: language
+      schema:
+        type: string
+        enum: [en, ur]
+        default: en
+      description: "Content language: 'en' for English, 'ur' for Urdu"
+
+    CategoryParam:
+      in: query
+      name: category
+      schema:
+        type: string
+      description: "Filter by category"
+
+    PageParam:
+      in: query
+      name: page
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+      description: "Page number for pagination"
+
+    PerPageParam:
+      in: query
+      name: perPage
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+      description: "Items per page"
+security: [] # default none; per-route add as needed
+
+paths:
+  /api/v1/health:
+    get:
+      tags: [Health]
+      summary: Health check
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string }
+
+  # -------------------- AUTH --------------------
+  /api/v1/auth/signup:
+    post:
+      tags: [Auth]
+      summary: User signup with email verification
+      description: |
+        Creates a new user account and sends verification email.
+
+        **Rate Limit:** 10 requests per minute per IP
+
+        **Password Requirements:**
+        - Minimum 8 characters
+        - At least one uppercase letter
+        - At least one lowercase letter
+        - At least one special character
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, email, phone, cnic, password, province]
+              properties:
+                name: { type: string, minLength: 1, maxLength: 120 }
+                email: { type: string, format: email }
+                phone: { type: string, minLength: 5, maxLength: 30 }
+                cnic:
+                  {
+                    type: string,
+                    minLength: 5,
+                    maxLength: 30,
+                    description: "Pakistani CNIC",
+                  }
+                password:
+                  {
+                    type: string,
+                    minLength: 8,
+                    pattern: "^(?=.*[a-z])(?=.*[A-Z])(?=.*[^A-Za-z0-9]).{8,}$",
+                  }
+                province:
+                  {
+                    type: string,
+                    enum: [Punjab, Sindh, KP, Balochistan, ICT],
+                  }
+                language: { type: string, enum: [en, ur], default: en }
+                city: { type: string, nullable: true }
+                gender: { type: string, nullable: true }
+                age: { type: integer, nullable: true }
+                fatherName: { type: string, nullable: true }
+                fatherCnic: { type: string, nullable: true }
+                motherName: { type: string, nullable: true }
+                motherCnic: { type: string, nullable: true }
+                totalSiblings: { type: integer, default: 0 }
+                brothers: { type: integer, default: 0 }
+                sisters: { type: integer, default: 0 }
+                timezone: { type: string, default: "UTC" }
+            example:
+              name: Ahmed Khan
+              email: ahmed@example.com
+              phone: "03001234567"
+              cnic: "12345-1234567-1"
+              password: "SecurePass@123"
+              language: en
+              province: Punjab
+              city: Lahore
+              gender: male
+              age: 28
+              fatherName: Khan Sahib
+              fatherCnic: "11111-1111111-1"
+              motherName: Begum Sahiba
+              motherCnic: "22222-2222222-2"
+              totalSiblings: 3
+              brothers: 2
+              sisters: 1
+              timezone: Asia/Karachi
+      responses:
+        "201":
+          description: User created successfully
+          headers:
+            X-RateLimit-Limit:
+              { schema: { type: integer }, description: "Rate limit ceiling" }
+            X-RateLimit-Remaining:
+              { schema: { type: integer }, description: "Requests remaining" }
+            X-RateLimit-Reset:
+              {
+                schema: { type: integer },
+                description: "Unix timestamp when limit resets",
+              }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SignupResponse" }
+        "400":
+          description: Validation error or missing fields
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ValidationErrorResponse" }
+        "409":
+          description: Email or CNIC already exists
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [message]
+                properties:
+                  message: { type: string }
+        "429":
+          description: Too Many Requests (10 per minute)
+          headers:
+            Retry-After:
+              {
+                schema: { type: integer },
+                description: "Seconds until retry allowed",
+              }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RateLimitError" }
+
+  /api/v1/auth/login:
+    post:
+      tags: [Auth]
+      summary: User login
+      description: |
+        Authenticate user and receive access tokens.
+
+        **Rate Limit:** 10 requests per minute per IP
+
+        **Requirements:**
+        - Email must be verified
+        - Account must not be deleted
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string, minLength: 1 }
+            example:
+              email: ahmed@example.com
+              password: "SecurePass@123"
+      responses:
+        "200":
+          description: Login successful
+          headers:
+            X-RateLimit-Limit: { schema: { type: integer } }
+            X-RateLimit-Remaining: { schema: { type: integer } }
+            X-RateLimit-Reset: { schema: { type: integer } }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LoginResponse" }
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "401":
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [message]
+                properties:
+                  message: { type: string, example: "Invalid email or password" }
+        "403":
+          description: Email not verified
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string, example: "Email not verified" }
+        "429":
+          description: Too Many Requests (10 per minute)
+          headers:
+            Retry-After: { schema: { type: integer } }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RateLimitError" }
+
+  /api/v1/auth/refresh:
+    post:
+      tags: [Auth]
+      summary: Refresh access token
+      description: Use refresh token to get new access and refresh tokens
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refreshToken]
+              properties:
+                refreshToken: { type: string }
+            example:
+              refreshToken: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+      responses:
+        "200":
+          description: Tokens refreshed successfully
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TokenResponse" }
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "401":
+          description: Invalid or expired refresh token
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UnauthorizedErrorResponse" }
+
+  /api/v1/auth/verify-email:
+    get:
+      tags: [Auth]
+      summary: Verify email address
+      description: |
+        Email verification via token sent to user's email.
+
+        **Rate Limit:** 30 requests per hour per IP
+        Returns `verified: false` if the token is invalid or expired.
+      parameters:
+        - in: query
+          name: token
+          required: true
+          schema: { type: string }
+          description: "Verification token from email (valid for 24 hours)"
+      responses:
+        "200":
+          description: Email verification result
+          headers:
+            X-RateLimit-Limit: { schema: { type: integer } }
+            X-RateLimit-Remaining: { schema: { type: integer } }
+            X-RateLimit-Reset: { schema: { type: integer } }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VerifyEmailResponse" }
+        "400":
+          description: Missing token
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "429":
+          description: Too Many Requests (30 per hour)
+          headers:
+            Retry-After: { schema: { type: integer } }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RateLimitError" }
+
+  /api/v1/auth/forgot-password:
+    post:
+      tags: [Auth]
+      summary: Request password reset
+      description: |
+        Sends password reset email to user.
+
+        **Rate Limit:** 5 requests per minute per IP
+
+        **Note:** Returns success even if email doesn't exist (security best practice)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email: { type: string, format: email }
+            example:
+              email: ahmed@example.com
+      responses:
+        "200":
+          description: Password reset email sent (if account exists)
+          headers:
+            X-RateLimit-Limit: { schema: { type: integer } }
+            X-RateLimit-Remaining: { schema: { type: integer } }
+            X-RateLimit-Reset: { schema: { type: integer } }
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean, example: true }
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "429":
+          description: Too Many Requests (5 per minute)
+          headers:
+            Retry-After: { schema: { type: integer } }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RateLimitError" }
+
+  /api/v1/auth/reset-password:
+    post:
+      tags: [Auth]
+      summary: Reset password with token
+      description: |
+        Reset password using token from email (valid for 1 hour).
+
+        **Rate Limit:** 5 requests per minute per IP
+
+        **Invalidates all existing tokens** for security.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token, newPassword]
+              properties:
+                token: { type: string }
+                newPassword:
+                  {
+                    type: string,
+                    minLength: 8,
+                    pattern: "^(?=.*[a-z])(?=.*[A-Z])(?=.*[^A-Za-z0-9]).{8,}$",
+                  }
+            example:
+              token: "abc123def456..."
+              newPassword: "NewSecure@Pass456"
+      responses:
+        "200":
+          description: Password reset successful
+          headers:
+            X-RateLimit-Limit: { schema: { type: integer } }
+            X-RateLimit-Remaining: { schema: { type: integer } }
+            X-RateLimit-Reset: { schema: { type: integer } }
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean, example: true }
+        "400":
+          description: Invalid/expired token or validation error
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/ValidationErrorResponse"
+                  - $ref: "#/components/schemas/Error"
+        "429":
+          description: Too Many Requests (5 per minute)
+          headers:
+            Retry-After: { schema: { type: integer } }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RateLimitError" }
+
+  /api/v1/auth/change-password:
+    post:
+      tags: [Auth]
+      summary: Change password (authenticated)
+      description: |
+        Change password for authenticated user.
+
+        **Returns new tokens** after password change.
+        **Invalidates all previous tokens** for security.
+      security: [{ bearerAuth: [] }, { safeModeHeader: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [currentPassword, newPassword, confirmPassword]
+              properties:
+                currentPassword: { type: string }
+                newPassword:
+                  {
+                    type: string,
+                    minLength: 8,
+                    pattern: "^(?=.*[a-z])(?=.*[A-Z])(?=.*[^A-Za-z0-9]).{8,}$",
+                  }
+                confirmPassword: { type: string }
+            example:
+              currentPassword: "SecurePass@123"
+              newPassword: "NewSecure@Pass789"
+              confirmPassword: "NewSecure@Pass789"
+      responses:
+        "200":
+          description: Password changed successfully
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ChangePasswordResponse" }
+        "400":
+          description: Validation error or current password mismatch
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/ValidationErrorResponse"
+                  - type: object
+                    required: [message]
+                    properties:
+                      message: { type: string }
+        "403":
+          description: Safe mode enabled (no password changes allowed)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, message]
+                properties:
+                  ok: { type: boolean, example: false }
+                  message: { type: string, example: "Safe mode" }
+
+  # -------------------- USERS --------------------
+  /api/v1/users/me:
+    get:
+      tags: [Users]
+      summary: Get current user profile
+      description: Returns complete user profile for authenticated user
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: User profile retrieved successfully
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UserPublicSchema" }
+        "401":
+          description: Invalid or expired token
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UnauthorizedErrorResponse" }
+    put:
+      tags: [Users]
+      summary: Update current user profile
+      description: |
+        Update user profile information.
+
+        **Rate Limit:** 30 requests per minute
+        **Safe Mode:** Blocked when `X-Safe-Mode: 1`
+      security: [{ bearerAuth: [] }, { safeModeHeader: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string, minLength: 1, maxLength: 120 }
+                phone: { type: string, minLength: 5, maxLength: 30 }
+                cnic: { type: string, minLength: 5, maxLength: 30 }
+                fatherName: { type: string, nullable: true }
+                fatherCnic: { type: string, nullable: true }
+                motherName: { type: string, nullable: true }
+                motherCnic: { type: string, nullable: true }
+                city: { type: string, nullable: true }
+                gender: { type: string, nullable: true }
+                age: { type: integer, nullable: true }
+                totalSiblings: { type: integer }
+                brothers: { type: integer }
+                sisters: { type: integer }
+                timezone: { type: string }
+                language: { type: string, enum: [en, ur] }
+            example:
+              name: Ahmed Updated
+              phone: "03009876543"
+              city: Karachi
+              age: 29
+              language: en
+      responses:
+        "200":
+          description: Profile updated successfully
+          headers:
+            X-RateLimit-Limit: { schema: { type: integer } }
+            X-RateLimit-Remaining: { schema: { type: integer } }
+            X-RateLimit-Reset: { schema: { type: integer } }
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean, example: true }
+        "400":
+          description: Invalid language
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UnauthorizedErrorResponse" }
+        "403":
+          description: Safe mode enabled
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, reason]
+                properties:
+                  ok: { type: boolean, example: false }
+                  reason: { type: string, example: "Safe mode" }
+        "429":
+          description: Too Many Requests (30 per minute)
+          headers:
+            Retry-After: { schema: { type: integer } }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RateLimitError" }
+
+  /api/v1/users/me/avatar:
+    post:
+      tags: [Users]
+      summary: Upload user avatar
+      description: |
+        Upload profile picture.
+
+        **Rate Limit:** 10 requests per minute
+        **Constraints:** Enforced by server configuration
+        **Safe Mode:** Blocked when `X-Safe-Mode: 1`
+      security: [{ bearerAuth: [] }, { safeModeHeader: [] }]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: "Avatar file"
+      responses:
+        "200":
+          description: Avatar uploaded successfully
+          headers:
+            X-RateLimit-Limit: { schema: { type: integer } }
+            X-RateLimit-Remaining: { schema: { type: integer } }
+            X-RateLimit-Reset: { schema: { type: integer } }
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [avatarPath]
+                properties:
+                  avatarPath:
+                    { type: string, example: "avatars/abc123_avatar.jpg" }
+        "400":
+          description: Invalid file
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UnauthorizedErrorResponse" }
+        "403":
+          description: Safe mode enabled
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, reason]
+                properties:
+                  ok: { type: boolean, example: false }
+                  reason: { type: string, example: "Safe mode" }
+        "429":
+          description: Too Many Requests (10 per minute)
+          headers:
+            Retry-After: { schema: { type: integer } }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RateLimitError" }
+
+  /api/v1/users/me/bookmarks:
+    post:
+      tags: [Users]
+      summary: Add bookmark
+      description: |
+        Bookmark a content item (right, template, or pathway).
+
+        **Safe Mode:** Blocked when `X-Safe-Mode: 1`
+      security: [{ bearerAuth: [] }, { safeModeHeader: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [itemType, itemId]
+              properties:
+                itemType: { type: string, enum: [right, template, pathway] }
+                itemId: { type: integer, format: int64 }
+            example:
+              itemType: right
+              itemId: 1
+      responses:
+        "201":
+          description: Bookmark created successfully
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OkIdResponse" }
+        "400":
+          description: Invalid itemType
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UnauthorizedErrorResponse" }
+        "403":
+          description: Safe mode enabled
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, reason]
+                properties:
+                  ok: { type: boolean, example: false }
+                  reason: { type: string, example: "Safe mode" }
+    get:
+      tags: [Users]
+      summary: List user bookmarks
+      description: Returns all bookmarks for authenticated user
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: Bookmarks retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/BookmarkSchema" }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UnauthorizedErrorResponse" }
+
+  /api/v1/users/me/bookmarks/{bookmarkId}:
+    delete:
+      tags: [Users]
+      summary: Delete bookmark
+      description: |
+        Remove a bookmark.
+
+        **Safe Mode:** Blocked when `X-Safe-Mode: 1`
+      security: [{ bearerAuth: [] }, { safeModeHeader: [] }]
+      parameters:
+        - in: path
+          name: bookmarkId
+          required: true
+          schema: { type: integer, format: int64 }
+      responses:
+        "200":
+          description: Bookmark deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean, example: true }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UnauthorizedErrorResponse" }
+        "403":
+          description: Safe mode enabled
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, reason]
+                properties:
+                  ok: { type: boolean, example: false }
+                  reason: { type: string, example: "Safe mode" }
+
+  /api/v1/users/me/activity:
+    post:
+      tags: [Users]
+      summary: Log user activity event
+      description: |
+        Log analytics event (e.g., viewed_right, searched, created_draft).
+
+        **Safe Mode:** Silently ignored when `X-Safe-Mode: 1` (returns success without logging)
+      security: [{ bearerAuth: [] }, { safeModeHeader: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                eventType: { type: string, maxLength: 30 }
+                payload: { type: object, additionalProperties: true }
+            example:
+              eventType: viewed_right
+              payload:
+                rightId: 5
+                timestamp: "2025-01-15T10:30:00Z"
+      responses:
+        "200":
+          description: Activity logged successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean, example: true }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UnauthorizedErrorResponse" }
+    get:
+      tags: [Users]
+      summary: Get user activity history
+      description: Returns last 6 activity events for user
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: Activity history retrieved
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ActivityEvent" }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UnauthorizedErrorResponse" }
+    delete:
+      tags: [Users]
+      summary: Clear user activity history
+      description: Deletes all activity events for the user
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: Activity history cleared
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean, example: true }
+
+  # -------------------- EMERGENCY CONTACTS --------------------
+  /api/v1/users/me/emergency-contacts:
+    get:
+      tags: [EmergencyContacts]
+      summary: List emergency contacts
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/EmergencyContact" }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UnauthorizedErrorResponse" }
+    post:
+      tags: [EmergencyContacts]
+      summary: Create emergency contact
+      description: |
+        Adds a new emergency contact (max 5).
+
+        **Safe Mode:** Blocked when `X-Safe-Mode: 1`
+      security: [{ bearerAuth: [] }, { safeModeHeader: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/EmergencyContactCreateRequest" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EmergencyContact" }
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UnauthorizedErrorResponse" }
+        "403":
+          description: Safe mode enabled
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ForbiddenErrorResponse" }
+
+  /api/v1/users/me/emergency-contacts/{contactId}:
+    put:
+      tags: [EmergencyContacts]
+      summary: Update emergency contact
+      description: |
+        Updates an existing emergency contact.
+
+        **Safe Mode:** Blocked when `X-Safe-Mode: 1`
+      security: [{ bearerAuth: [] }, { safeModeHeader: [] }]
+      parameters:
+        - in: path
+          name: contactId
+          required: true
+          schema: { type: integer, format: int64 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/EmergencyContactUpdateRequest" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EmergencyContact" }
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UnauthorizedErrorResponse" }
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ForbiddenErrorResponse" }
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+    delete:
+      tags: [EmergencyContacts]
+      summary: Delete emergency contact
+      description: |
+        Deletes an existing emergency contact.
+
+        **Safe Mode:** Blocked when `X-Safe-Mode: 1`
+      security: [{ bearerAuth: [] }, { safeModeHeader: [] }]
+      parameters:
+        - in: path
+          name: contactId
+          required: true
+          schema: { type: integer, format: int64 }
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean, example: true }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UnauthorizedErrorResponse" }
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ForbiddenErrorResponse" }
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  # -------------------- RIGHTS --------------------
+  /api/v1/rights:
+    get:
+      tags: [Rights]
+      summary: List rights
+      description: Returns rights filtered by user's language preference and optional category
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: "#/components/parameters/CategoryParam"
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/RightSchema" }
+                  message:
+                    type: string
+                    nullable: true
+                    example: null
+              examples:
+                withData:
+                  summary: Rights found
+                  value:
+                    data:
+                      - id: 1
+                        topic: "Right to Education"
+                        body: "Every child has the right..."
+                        category: "education"
+                        language: "en"
+                        tags: ["education", "children"]
+                    message: null
+                noContent:
+                  summary: No content in language
+                  value:
+                    data: []
+                    message: "Content not available in selected language"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UnauthorizedErrorResponse" }
+    post:
+      tags: [Rights]
+      summary: Create right (Admin)
+      description: |
+        Creates a new legal right entry.
+
+        **Admin Only**
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [topic, body]
+              properties:
+                topic:
+                  type: string
+                  minLength: 1
+                  maxLength: 200
+                  example: "Right to Education"
+                body:
+                  type: string
+                  minLength: 1
+                  example: "Every child has the right to free education..."
+                category:
+                  type: string
+                  maxLength: 120
+                  nullable: true
+                  example: "education"
+                language:
+                  type: string
+                  enum: [en, ur]
+                  default: en
+                tags:
+                  type: array
+                  items: { type: string }
+                  default: []
+                  example: ["education", "children", "rights"]
+      responses:
+        "201":
+          description: Right created successfully
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OkIdResponse" }
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /api/v1/rights/{rightId}:
+    get:
+      tags: [Rights]
+      summary: Get single right
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: rightId
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, message]
+                properties:
+                  data: { $ref: "#/components/schemas/RightSchema" }
+                  message: { type: string, nullable: true }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UnauthorizedErrorResponse" }
+        "404":
+          description: Content not available in selected language
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, message]
+                properties:
+                  data: { type: object, nullable: true }
+                  message: { type: string }
+    put:
+      tags: [Rights]
+      summary: Update right (Admin)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: rightId
+          required: true
+          schema: { type: integer, format: int64 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                topic:
+                  type: string
+                  minLength: 1
+                  maxLength: 200
+                body:
+                  type: string
+                  minLength: 1
+                category:
+                  type: string
+                  maxLength: 120
+                  nullable: true
+                language:
+                  type: string
+                  enum: [en, ur]
+                tags:
+                  type: array
+                  items: { type: string }
+            example:
+              body: "Updated body text..."
+              tags: ["education", "updated"]
+      responses:
+        "200":
+          description: Right updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean, example: true }
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+    delete:
+      tags: [Rights]
+      summary: Delete right (Admin)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: rightId
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean, example: true }
+
+  # -------------------- TEMPLATES --------------------
+  /api/v1/templates:
+    get:
+      tags: [Templates]
+      summary: List templates
+      description: Returns templates filtered by user's language preference and optional category
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: "#/components/parameters/CategoryParam"
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/TemplateSchema" }
+                  message:
+                    type: string
+                    nullable: true
+              examples:
+                withData:
+                  summary: Templates found
+                  value:
+                    data:
+                      - id: 1
+                        title: "Rent Agreement"
+                        description: "Standard rent agreement"
+                        body: "This agreement is made between {{landlordName}}..."
+                        category: "property"
+                        language: "en"
+                        tags: ["rent", "property"]
+                    message: null
+                noContent:
+                  summary: No content in language
+                  value:
+                    data: []
+                    message: "Content not available in selected language"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UnauthorizedErrorResponse" }
+    post:
+      tags: [Templates]
+      summary: Create template (Admin)
+      description: |
+        Creates a new document template with placeholder support.
+        
+        Placeholders use `{{variableName}}` syntax.
+        
+        **Admin Only**
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title, body]
+              properties:
+                title:
+                  type: string
+                  minLength: 1
+                  maxLength: 200
+                  example: "Rent Agreement"
+                description:
+                  type: string
+                  nullable: true
+                  example: "Standard rent agreement template"
+                body:
+                  type: string
+                  minLength: 1
+                  description: "Template text with {{placeholders}}"
+                  example: "This agreement is made between {{landlordName}} and {{tenantName}}..."
+                category:
+                  type: string
+                  maxLength: 120
+                  nullable: true
+                  example: "property"
+                language:
+                  type: string
+                  enum: [en, ur]
+                  default: en
+                tags:
+                  type: array
+                  items: { type: string }
+                  default: []
+                  example: ["rent", "property"]
+      responses:
+        "201":
+          description: Template created successfully
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OkIdResponse" }
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /api/v1/templates/{templateId}:
+    get:
+      tags: [Templates]
+      summary: Get single template
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: templateId
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, message]
+                properties:
+                  data: { $ref: "#/components/schemas/TemplateSchema" }
+                  message: { type: string, nullable: true }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UnauthorizedErrorResponse" }
+        "404":
+          description: Content not available in selected language
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, message]
+                properties:
+                  data: { type: object, nullable: true }
+                  message: { type: string }
+    put:
+      tags: [Templates]
+      summary: Update template (Admin)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: templateId
+          required: true
+          schema: { type: integer, format: int64 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                  minLength: 1
+                  maxLength: 200
+                description:
+                  type: string
+                  nullable: true
+                body:
+                  type: string
+                  minLength: 1
+                category:
+                  type: string
+                  maxLength: 120
+                  nullable: true
+                language:
+                  type: string
+                  enum: [en, ur]
+                tags:
+                  type: array
+                  items: { type: string }
+            example:
+              title: "Updated Rent Agreement"
+              body: "Updated template body..."
+      responses:
+        "200":
+          description: Template updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean, example: true }
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+    delete:
+      tags: [Templates]
+      summary: Delete template (Admin)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: templateId
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean, example: true }
+
+  # -------------------- PATHWAYS --------------------
+  /api/v1/pathways:
+    get:
+      tags: [Pathways]
+      summary: List pathways
+      description: Returns pathways filtered by user's language preference and optional category
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: "#/components/parameters/CategoryParam"
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/PathwaySchema" }
+                  message:
+                    type: string
+                    nullable: true
+              examples:
+                withData:
+                  summary: Pathways found
+                  value:
+                    data:
+                      - id: 1
+                        title: "Divorce Process in Pakistan"
+                        summary: "Step-by-step guide"
+                        steps:
+                          - step: 1
+                            title: "File petition"
+                            description: "File in family court"
+                        category: "family"
+                        language: "en"
+                        tags: ["divorce"]
+                    message: null
+                noContent:
+                  summary: No content in language
+                  value:
+                    data: []
+                    message: "Content not available in selected language"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UnauthorizedErrorResponse" }
+    post:
+      tags: [Pathways]
+      summary: Create pathway (Admin)
+      description: |
+        Creates a new legal pathway (step-by-step guide).
+        
+        **Admin Only**
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title, steps]
+              properties:
+                title:
+                  type: string
+                  minLength: 1
+                  maxLength: 200
+                  example: "Divorce Process in Pakistan"
+                summary:
+                  type: string
+                  nullable: true
+                  example: "Step-by-step guide for divorce proceedings"
+                steps:
+                  type: array
+                  minItems: 1
+                  items:
+                    type: object
+                    properties:
+                      step: { type: integer, example: 1 }
+                      title: { type: string, example: "File petition" }
+                      description: { type: string, example: "File in family court" }
+                  example:
+                    - step: 1
+                      title: "File petition"
+                      description: "File in family court"
+                    - step: 2
+                      title: "Notice period"
+                      description: "90 days waiting period"
+                category:
+                  type: string
+                  maxLength: 120
+                  nullable: true
+                  example: "family"
+                language:
+                  type: string
+                  enum: [en, ur]
+                  default: en
+                tags:
+                  type: array
+                  items: { type: string }
+                  default: []
+                  example: ["divorce", "family-law"]
+      responses:
+        "201":
+          description: Pathway created successfully
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OkIdResponse" }
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /api/v1/pathways/{pathwayId}:
+    get:
+      tags: [Pathways]
+      summary: Get single pathway
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: pathwayId
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, message]
+                properties:
+                  data: { $ref: "#/components/schemas/PathwaySchema" }
+                  message: { type: string, nullable: true }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UnauthorizedErrorResponse" }
+        "404":
+          description: Content not available in selected language
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, message]
+                properties:
+                  data: { type: object, nullable: true }
+                  message: { type: string }
+    put:
+      tags: [Pathways]
+      summary: Update pathway (Admin)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: pathwayId
+          required: true
+          schema: { type: integer, format: int64 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                  minLength: 1
+                  maxLength: 200
+                summary:
+                  type: string
+                  nullable: true
+                steps:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      step: { type: integer }
+                      title: { type: string }
+                      description: { type: string }
+                category:
+                  type: string
+                  maxLength: 120
+                  nullable: true
+                language:
+                  type: string
+                  enum: [en, ur]
+                tags:
+                  type: array
+                  items: { type: string }
+      responses:
+        "200":
+          description: Pathway updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean, example: true }
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UnauthorizedErrorResponse" }
+        "403":
+          description: Forbidden (Admin only)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ForbiddenErrorResponse" }
+    delete:
+      tags: [Pathways]
+      summary: Delete pathway (Admin)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: pathwayId
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean, example: true }
+
+  # -------------------- CHECKLISTS --------------------
+  /api/v1/checklists/categories:
+    get:
+      tags: [Checklists]
+      summary: List checklist categories
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ChecklistCategory" }
+    post:
+      tags: [Checklists]
+      summary: Create category (Admin)
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title]
+              properties:
+                title:
+                  type: string
+                  minLength: 1
+                  maxLength: 200
+                  example: "Court Documents"
+                icon:
+                  type: string
+                  maxLength: 80
+                  nullable: true
+                  example: "📄"
+                order:
+                  type: integer
+                  default: 0
+                  example: 1
+      responses:
+        "201":
+          description: Category created successfully
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OkIdResponse" }
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UnauthorizedErrorResponse" }
+        "403":
+          description: Forbidden (Admin only)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ForbiddenErrorResponse" }
+
+  /api/v1/checklists/categories/{categoryId}:
+    put:
+      tags: [Checklists]
+      summary: Update category (Admin)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: categoryId
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AnyObject" }
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean, example: true }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UnauthorizedErrorResponse" }
+        "403":
+          description: Forbidden (Admin only)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ForbiddenErrorResponse" }
+    delete:
+      tags: [Checklists]
+      summary: Delete category (Admin)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: categoryId
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean, example: true }
+
+  /api/v1/checklists/items:
+    get:
+      tags: [Checklists]
+      summary: List checklist items
+      parameters:
+        - in: query
+          name: categoryId
+          required: false
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ChecklistItem" }
+        "400":
+          description: Invalid categoryId
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+    post:
+      tags: [Checklists]
+      summary: Create item (Admin)
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [categoryId, text]
+              properties:
+                categoryId:
+                  type: integer
+                  format: int64
+                  example: 1
+                text:
+                  type: string
+                  minLength: 1
+                  maxLength: 300
+                  example: "CNIC Copy"
+                required:
+                  type: boolean
+                  default: false
+                  example: true
+                order:
+                  type: integer
+                  default: 0
+                  example: 1
+      responses:
+        "201":
+          description: Item created successfully
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OkIdResponse" }
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UnauthorizedErrorResponse" }
+        "403":
+          description: Forbidden (Admin only)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ForbiddenErrorResponse" }
+
+  /api/v1/checklists/items/{itemId}:
+    put:
+      tags: [Checklists]
+      summary: Update item (Admin)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: itemId
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AnyObject" }
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean, example: true }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UnauthorizedErrorResponse" }
+        "403":
+          description: Forbidden (Admin only)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ForbiddenErrorResponse" }
+    delete:
+      tags: [Checklists]
+      summary: Delete item (Admin)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: itemId
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean, example: true }
+
+  # -------------------- DRAFTS --------------------
+  /api/v1/drafts/generate:
+    post:
+      tags: [Drafts]
+      summary: Generate draft
+      security: [{ bearerAuth: [] }, { safeModeHeader: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/DraftGenerateRequest" }
+            example:
+              templateId: 1
+              answers:
+                landlordName: Ali Ahmed
+                tenantName: Usman Khan
+                rent: "50000"
+                address: DHA Phase 5, Lahore
+              userSnapshot:
+                name: Ahmed Khan
+                cnic: "12345-1234567-1"
+                phone: "03001234567"
+      responses:
+        "201":
+          description: Draft generated successfully
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DraftGenerateResponse" }
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UnauthorizedErrorResponse" }
+        "403":
+          description: Safe mode enabled
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /api/v1/drafts:
+    get:
+      tags: [Drafts]
+      summary: List drafts
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/DraftListItem" }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UnauthorizedErrorResponse" }
+
+  /api/v1/drafts/{draftId}:
+    get:
+      tags: [Drafts]
+      summary: Get single draft
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: draftId
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DraftSchema" }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UnauthorizedErrorResponse" }
+        "403":
+          description: Not yours
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+    delete:
+      tags: [Drafts]
+      summary: Delete draft
+      security: [{ bearerAuth: [] }, { safeModeHeader: [] }]
+      parameters:
+        - in: path
+          name: draftId
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean, example: true }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UnauthorizedErrorResponse" }
+        "403":
+          description: Safe mode enabled
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /api/v1/drafts/{draftId}/export:
+    get:
+      tags: [Drafts]
+      summary: Export draft
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: draftId
+          required: true
+          schema: { type: integer }
+        - in: query
+          name: format
+          required: true
+          schema:
+            type: string
+            enum: [txt, pdf, docx]
+      responses:
+        "200":
+          description: Exported draft
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [text]
+                properties:
+                  text: { type: string }
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        "400":
+          description: Invalid format
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UnauthorizedErrorResponse" }
+        "403":
+          description: Not yours
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  # -------------------- CHAT --------------------
+  /api/v1/chat/transcribe:
+    post:
+      tags: [Chat]
+      summary: Transcribe audio to text
+      description: |
+        Upload an audio file and receive transcribed text.
+
+        Optional provider/model overrides are supported.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: header
+          name: X-OpenAI-Key
+          required: false
+          schema: { type: string }
+          description: "Optional provider API key override"
+        - in: header
+          name: X-OpenRouter-Key
+          required: false
+          schema: { type: string }
+          description: "Optional provider API key override"
+        - in: header
+          name: X-Groq-Key
+          required: false
+          schema: { type: string }
+          description: "Optional provider API key override"
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                language:
+                  { type: string, enum: [en, ur], nullable: true }
+                provider:
+                  { type: string, enum: [auto, openai, openrouter, groq], nullable: true }
+                model:
+                  { type: string, nullable: true }
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [text, provider]
+                properties:
+                  text: { type: string }
+                  provider: { type: string }
+        "400":
+          description: Invalid request (missing/invalid file or params)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UnauthorizedErrorResponse" }
+        "429":
+          description: Too Many Requests
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RateLimitError" }
+
+  /api/v1/chat/ask:
+    post:
+      tags: [Chat]
+      summary: Ask question to RAG-powered legal AI
+      description: |
+        Submit a question to the RAG-powered legal AI assistant.
+
+        The assistant uses the authenticated user's language preference.
+
+        **Safe Mode (`X-Safe-Mode: 1`):**
+        - No database writes (conversation not saved)
+        - No conversation memory/history
+        - Response still uses RAG knowledge base
+        - Returns `conversationId: null`
+
+        **Normal Mode:**
+        - Conversation saved to database
+        - Conversation memory enabled (last 10 messages)
+        - Returns `conversationId` for follow-up questions
+
+        **Disclaimer:** Legal disclaimers are automatically added to in-domain answers
+        that contain legal advice keywords.
+
+        **Rate Limiting:** Inherits global default (120 per minute)
+      security:
+        - bearerAuth: []
+        - safeModeHeader: []
+      parameters:
+        - in: header
+          name: X-Safe-Mode
+          required: false
+          schema:
+            type: string
+            enum: ["0", "1"]
+            default: "0"
+          description: "Set to '1' for safe mode (no persistence)"
+        - in: header
+          name: X-OpenAI-Key
+          required: false
+          schema: { type: string }
+          description: "Optional provider API key override"
+        - in: header
+          name: X-OpenRouter-Key
+          required: false
+          schema: { type: string }
+          description: "Optional provider API key override"
+        - in: header
+          name: X-Groq-Key
+          required: false
+          schema: { type: string }
+          description: "Optional provider API key override"
+        - in: header
+          name: X-DeepSeek-Key
+          required: false
+          schema: { type: string }
+          description: "Optional provider API key override"
+        - in: header
+          name: X-Grok-Key
+          required: false
+          schema: { type: string }
+          description: "Optional provider API key override"
+        - in: header
+          name: X-Anthropic-Key
+          required: false
+          schema: { type: string }
+          description: "Optional provider API key override"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ChatAskRequest" }
+            examples:
+              newConversation:
+                summary: New conversation
+                value:
+                  question: "What are the divorce laws in Pakistan?"
+              continueConversation:
+                summary: Continue existing conversation
+                value:
+                  question: "What documents are required?"
+                  conversationId: 1
+              safeMode:
+                summary: Safe mode (no persistence)
+                value:
+                  question: "Tell me about inheritance laws"
+      responses:
+        "200":
+          description: Answer generated successfully
+          headers:
+            X-RateLimit-Limit: { schema: { type: integer } }
+            X-RateLimit-Remaining: { schema: { type: integer } }
+            X-RateLimit-Reset: { schema: { type: integer } }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ChatAskResponse" }
+              examples:
+                inDomain:
+                  summary: In-domain legal answer
+                  value:
+                    answer: "According to Pakistani law...\n\nNote: This information is provided only to explain your legal rights..."
+                    conversationId: 1
+                    contextsUsed: 5
+                    lawyers:
+                      - id: 12
+                        name: "Ayesha Malik"
+                        email: "ayesha@example.com"
+                        phone: "03001234567"
+                        category: "Family Law"
+                        profilePicturePath: "/uploads/lawyers/12.jpg"
+                outOfDomain:
+                  summary: Out-of-domain query
+                  value:
+                    answer: "I can only help with legal awareness related to Pakistan's laws. Please ask a legal question."
+                    conversationId: 1
+                    contextsUsed: 0
+                safeMode:
+                  summary: Safe mode response
+                  value:
+                    answer: "According to Pakistani law..."
+                    conversationId: null
+                    contextsUsed: 3
+        "400":
+          description: Validation error (missing question, too long, invalid conversationId)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UnauthorizedErrorResponse" }
+        "403":
+          description: Access forbidden (conversation belongs to another user)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "404":
+          description: Conversation not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "429":
+          description: Too Many Requests
+          headers:
+            Retry-After: { schema: { type: integer } }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RateLimitError" }
+
+  /api/v1/chat/conversations:
+    get:
+      tags: [Chat]
+      summary: List user conversations
+      description: Returns paginated list of user's chat conversations ordered by most recent
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: "#/components/parameters/PageParam"
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+          description: "Items per page"
+      responses:
+        "200":
+          description: Conversations retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [page, limit, items]
+                properties:
+                  page: { type: integer, minimum: 1 }
+                  limit: { type: integer, minimum: 1, maximum: 100 }
+                  items:
+                    type: array
+                    items: { $ref: "#/components/schemas/ConversationSchema" }
+        "400":
+          description: Invalid pagination parameters
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /api/v1/chat/conversations/{conversationId}/messages:
+    get:
+      tags: [Chat]
+      summary: Get conversation messages
+      description: Returns paginated messages for a specific conversation (oldest to newest)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: conversationId
+          required: true
+          schema: { type: integer, format: int64 }
+        - $ref: "#/components/parameters/PageParam"
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 30
+          description: "Messages per page"
+      responses:
+        "200":
+          description: Messages retrieved successfully
+          content:
+            application/json:
+              schema:
+                { $ref: "#/components/schemas/ConversationMessagesResponse" }
+        "400":
+          description: Invalid pagination parameters
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UnauthorizedErrorResponse" }
+        "403":
+          description: Conversation belongs to another user
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "404":
+          description: Conversation not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /api/v1/chat/conversations/{conversationId}:
+    put:
+      tags: [Chat]
+      summary: Rename conversation
+      description: Update conversation title (max 200 characters)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: conversationId
+          required: true
+          schema: { type: integer, format: int64 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title]
+              properties:
+                title: { type: string, minLength: 1, maxLength: 200 }
+            example:
+              title: "Divorce Law Discussion"
+      responses:
+        "200":
+          description: Conversation renamed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean, example: true }
+        "400":
+          description: Invalid title (empty or too long)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UnauthorizedErrorResponse" }
+        "403":
+          description: Conversation belongs to another user
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "404":
+          description: Conversation not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+    delete:
+      tags: [Chat]
+      summary: Delete conversation
+      description: Permanently deletes conversation and all its messages
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: conversationId
+          required: true
+          schema: { type: integer, format: int64 }
+      responses:
+        "200":
+          description: Conversation deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean, example: true }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UnauthorizedErrorResponse" }
+        "403":
+          description: Conversation belongs to another user
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "404":
+          description: Conversation not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  # -------------------- REMINDERS --------------------
+  /api/v1/reminders:
+    post:
+      tags: [Reminders]
+      summary: Create reminder
+      description: |
+        Creates a new reminder with push notification scheduling.
+        
+        **Safe Mode:** Blocked when `X-Safe-Mode: 1`
+      security: [{ bearerAuth: [] }, { safeModeHeader: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title, scheduledAt]
+              properties:
+                title:
+                  type: string
+                  minLength: 1
+                  maxLength: 200
+                  example: "Court Hearing"
+                notes:
+                  type: string
+                  nullable: true
+                  example: "Family court hearing at 10 AM"
+                scheduledAt:
+                  type: string
+                  format: date-time
+                  example: "2025-01-20T10:00:00Z"
+                timezone:
+                  type: string
+                  example: "Asia/Karachi"
+      responses:
+        "201":
+          description: Reminder created successfully
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OkIdResponse" }
+        "400":
+          description: Validation error (missing title or scheduledAt)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UnauthorizedErrorResponse" }
+        "403":
+          description: Safe mode enabled
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+    get:
+      tags: [Reminders]
+      summary: List reminders
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ReminderSchema" }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UnauthorizedErrorResponse" }
+
+  /api/v1/reminders/{reminderId}:
+    put:
+      tags: [Reminders]
+      summary: Update reminder
+      description: |
+        Updates reminder details or marks as done.
+        
+        **Safe Mode:** Blocked when `X-Safe-Mode: 1`
+      security: [{ bearerAuth: [] }, { safeModeHeader: [] }]
+      parameters:
+        - in: path
+          name: reminderId
+          required: true
+          schema: { type: integer, format: int64 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                  minLength: 1
+                  maxLength: 200
+                notes:
+                  type: string
+                  nullable: true
+                scheduledAt:
+                  type: string
+                  format: date-time
+                timezone:
+                  type: string
+                isDone:
+                  type: boolean
+            example:
+              title: "Updated Court Hearing"
+              isDone: true
+      responses:
+        "200":
+          description: Reminder updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean, example: true }
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UnauthorizedErrorResponse" }
+        "403":
+          description: Forbidden (Safe mode or not owner)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "404":
+          description: Reminder not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+    delete:
+      tags: [Reminders]
+      summary: Delete reminder
+      security: [{ bearerAuth: [] }, { safeModeHeader: [] }]
+      parameters:
+        - in: path
+          name: reminderId
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean, example: true }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UnauthorizedErrorResponse" }
+        "403":
+          description: Safe mode enabled
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /api/v1/reminders/register-device-token:
+    post:
+      tags: [Reminders]
+      summary: Register device token
+      description: |
+        Registers FCM/APNS token for push notifications.
+        
+        Upserts token (deletes old, creates new).
+        
+        **Safe Mode:** Blocked when `X-Safe-Mode: 1`
+      security: [{ bearerAuth: [] }, { safeModeHeader: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [platform, token]
+              properties:
+                platform:
+                  type: string
+                  enum: [android, ios]
+                  example: "android"
+                token:
+                  type: string
+                  minLength: 10
+                  example: "fcm_device_token_here_very_long_string..."
+      responses:
+        "200":
+          description: Token registered successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean, example: true }
+        "400":
+          description: Invalid platform or missing token
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UnauthorizedErrorResponse" }
+        "403":
+          description: Safe mode enabled
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  # -------------------- NOTIFICATIONS --------------------
+  /api/v1/notifications:
+    get:
+      tags: [Notifications]
+      summary: List notifications
+      description: Returns the latest notifications (newest first).
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+        - in: query
+          name: before
+          schema: { type: integer }
+          description: "Return items with id < before (pagination)"
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/NotificationsListResponse" }
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UnauthorizedErrorResponse" }
+
+  /api/v1/notifications/{notificationId}/read:
+    post:
+      tags: [Notifications]
+      summary: Mark notification as read
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: notificationId
+          required: true
+          schema: { type: integer, format: int64 }
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean, example: true }
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UnauthorizedErrorResponse" }
+
+  /api/v1/notifications/mark-all-read:
+    post:
+      tags: [Notifications]
+      summary: Mark all notifications as read
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, updated]
+                properties:
+                  ok: { type: boolean, example: true }
+                  updated: { type: integer, example: 5 }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UnauthorizedErrorResponse" }
+
+  /api/v1/notifications/unread-count:
+    get:
+      tags: [Notifications]
+      summary: Get unread notifications count
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [count]
+                properties:
+                  count: { type: integer, example: 2 }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UnauthorizedErrorResponse" }
+
+  /api/v1/notifications/preferences:
+    get:
+      tags: [Notifications]
+      summary: Get notification preferences
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/NotificationPreferences" }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UnauthorizedErrorResponse" }
+    put:
+      tags: [Notifications]
+      summary: Update notification preferences
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/NotificationPreferencesUpdate" }
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/NotificationPreferences" }
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UnauthorizedErrorResponse" }
+
+  /api/v1/notifications/register-device-token:
+    post:
+      tags: [Notifications]
+      summary: Register device token
+      description: Registers FCM/APNS token for push notifications.
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/NotificationDeviceTokenRequest" }
+      responses:
+        "200":
+          description: Token registered successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean, example: true }
+        "400":
+          description: Invalid platform or missing token
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UnauthorizedErrorResponse" }
+
+  /api/v1/notifications/unregister-device-token:
+    post:
+      tags: [Notifications]
+      summary: Unregister device token
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/NotificationUnregisterRequest" }
+      responses:
+        "200":
+          description: Token unregistered successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean, example: true }
+        "400":
+          description: Missing token
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UnauthorizedErrorResponse" }
+
+  # -------------------- ADMIN KNOWLEDGE --------------------
+  /api/v1/admin/knowledge/upload:
+    post:
+      tags: [Admin]
+      summary: Upload knowledge document
+      description: |
+        Uploads a document for RAG ingestion. Supports deduplication via content hash.
+
+        **Rate Limit:** Inherits global default
+        **Max File Size:** 30MB (configurable via MAX_UPLOAD_MB env var)
+        **Supported formats:** txt, csv, tsv, json, pdf, docx, xlsx, png, jpg, jpeg, svg
+        **Deduplication:** Duplicate content (same SHA256 hash) will be rejected
+        **Processing:** Document queued for async ingestion via Celery
+
+        **Admin Only**
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: "Document file (max 30MB)"
+                language:
+                  type: string
+                  enum: [en, ur]
+                  default: en
+                  description: "Document language for RAG search filtering"
+      responses:
+        "201":
+          description: Document uploaded and queued for ingestion
+          headers:
+            X-RateLimit-Limit: { schema: { type: integer } }
+            X-RateLimit-Remaining: { schema: { type: integer } }
+            X-RateLimit-Reset: { schema: { type: integer } }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OkIdResponse" }
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+              examples:
+                emptyFile:
+                  value:
+                    message: "File is empty. Please upload a non-empty document."
+                    error: "Bad Request"
+                duplicate:
+                  value:
+                    message: "A document with the same content has already been uploaded."
+                    error: "Bad Request"
+                unsupportedType:
+                  value:
+                    message: "Unsupported document type for ingestion"
+                    error: "Bad Request"
+                    details:
+                      supportedFormats:
+                        [
+                          "txt",
+                          "csv",
+                          "tsv",
+                          "json",
+                          "pdf",
+                          "docx",
+                          "xlsx",
+                          "png",
+                          "jpg",
+                          "jpeg",
+                          "svg",
+                        ]
+                tooLarge:
+                  value:
+                    message: "File too large (max 30MB)"
+                    error: "Bad Request"
+                configIncomplete:
+                  value:
+                    message: "Embedding configuration is incomplete. Please set EMBEDDING_DIMENSION and EMBEDDING_MODEL in environment variables."
+                    error: "Bad Request"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UnauthorizedErrorResponse" }
+        "403":
+          description: Forbidden (Admin only)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ForbiddenErrorResponse" }
+        "429":
+          description: Too Many Requests
+          headers:
+            Retry-After: { schema: { type: integer } }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RateLimitError" }
+
+  /api/v1/admin/knowledge/url:
+    post:
+      tags: [Admin]
+      summary: Ingest knowledge URL
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [url, title]
+              properties:
+                url: { type: string }
+                title: { type: string }
+                language: { type: string, enum: [en, ur], default: en }
+            example:
+              url: https://example.com/legal-article
+              title: Legal Article Title
+              language: en
+      responses:
+        "201":
+          description: Source created and queued
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OkIdResponse" }
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UnauthorizedErrorResponse" }
+        "403":
+          description: Forbidden (Admin only)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ForbiddenErrorResponse" }
+
+  /api/v1/admin/knowledge/sources:
+    get:
+      tags: [Admin]
+      summary: List knowledge sources
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  required: [id, title, type, language, status, errorMessage, createdAt, updatedAt]
+                  properties:
+                    id: { type: integer }
+                    title: { type: string }
+                    type: { type: string }
+                    language: { type: string, enum: [en, ur] }
+                    status: { type: string }
+                    errorMessage: { type: string, nullable: true }
+                    createdAt: { type: string, format: date-time }
+                    updatedAt: { type: string, format: date-time }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UnauthorizedErrorResponse" }
+        "403":
+          description: Forbidden (Admin only)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ForbiddenErrorResponse" }
+
+  /api/v1/admin/knowledge/sources/{sourceId}/retry:
+    post:
+      tags: [Admin]
+      summary: Retry knowledge source ingestion
+      description: |
+        Manually triggers re-ingestion for a failed/queued knowledge source.
+
+        **Rules:**
+        - `status=invalid`: Cannot be retried (permanent input problem)
+        - `status=done`: Cannot be retried (already complete)
+        - `status=queued|failed`: Can be retried
+        - Maximum 10 automatic retries enforced
+        - Admin manual retries also count toward this limit
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: sourceId
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Retry queued successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean, example: true }
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UnauthorizedErrorResponse" }
+        "403":
+          description: Forbidden (Admin only)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ForbiddenErrorResponse" }
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /api/v1/admin/knowledge/sources/{sourceId}:
+    delete:
+      tags: [Admin]
+      summary: Delete knowledge source
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: sourceId
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean, example: true }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UnauthorizedErrorResponse" }
+        "403":
+          description: Forbidden (Admin only)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ForbiddenErrorResponse" }
+  # -------------------- ADMIN USERS --------------------
+  /api/v1/admin/users:
+    get:
+      tags: [Admin]
+      summary: List users (Admin)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: query
+          name: page
+          required: false
+          schema: { type: integer, minimum: 1 }
+        - in: query
+          name: perPage
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 100 }
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, meta]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        [id, name, email, phone, cnic, isAdmin, isEmailVerified, isDeleted, createdAt]
+                      properties:
+                        id: { type: integer, format: int64 }
+                        name: { type: string }
+                        email: { type: string, format: email }
+                        phone: { type: string }
+                        cnic: { type: string }
+                        isAdmin: { type: boolean }
+                        isEmailVerified: { type: boolean }
+                        isDeleted: { type: boolean }
+                        createdAt: { type: string, format: date-time, nullable: true }
+                  meta: { $ref: "#/components/schemas/PaginationMeta" }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UnauthorizedErrorResponse" }
+        "403":
+          description: Forbidden (Admin only)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ForbiddenErrorResponse" }
+
+    post:
+      tags: [Admin]
+      summary: Create user (Admin)
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AnyObject" }
+            example:
+              name: "Ayesha Khan"
+              email: "ayesha@example.com"
+              phone: "03001234567"
+              cnic: "12345-1234567-1"
+              password: "StrongPass@123"
+              isAdmin: false
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OkIdResponse" }
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UnauthorizedErrorResponse" }
+        "403":
+          description: Forbidden (Admin only)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ForbiddenErrorResponse" }
+        "409":
+          description: Conflict
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /api/v1/admin/users/{userId}:
+    put:
+      tags: [Admin]
+      summary: Update user (Admin)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: userId
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AnyObject" }
+            example:
+              name: "Ayesha Khan Updated"
+              phone: "03009998888"
+              isAdmin: false
+              password: "NewStrongPass@123"
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean, example: true }
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UnauthorizedErrorResponse" }
+        "403":
+          description: Forbidden (Admin only)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ForbiddenErrorResponse" }
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+    delete:
+      tags: [Admin]
+      summary: Soft delete user (Admin only)
+      description: |
+        Soft deletes a user by setting `isDeleted=true`, `deletedAt=now()`, and `deletedBy=adminId`.
+        Also invalidates all user tokens by incrementing `tokenVersion`.
+
+        **Note:** This is a soft delete. User data is retained in database for audit purposes.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: userId
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Success (idempotent)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean, example: true }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UnauthorizedErrorResponse" }
+        "403":
+          description: Forbidden (Admin only)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ForbiddenErrorResponse" }
+        "404":
+          description: User not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "429":
+          description: Too Many Requests
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RateLimitError" }
+
+  # -------------------- CONTENT --------------------
+  /api/v1/content/manifest:
+    get:
+      tags: [Content]
+      summary: Get manifest
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ContentManifest" }
+
+  /api/v1/content/rights.json:
+    get:
+      tags: [Content]
+      summary: Get rights JSON
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ContentRight" }
+
+  /api/v1/content/templates.json:
+    get:
+      tags: [Content]
+      summary: Get templates JSON
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ContentTemplate" }
+
+  # -------------------- SUPPORT --------------------
+  /api/v1/support/contact:
+    post:
+      tags: [Support]
+      summary: Submit contact-us message
+      description: Requires a valid user token. Returns created message id.
+      security: [{ bearerAuth: [] }, { safeModeHeader: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SupportContactRequest" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, id]
+                properties:
+                  ok: { type: boolean, example: true }
+                  id: { type: integer, format: int64 }
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ValidationErrorResponse" }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UnauthorizedErrorResponse" }
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, reason]
+                properties:
+                  ok: { type: boolean, example: false }
+                  reason: { type: string, example: "Safe mode" }
+        "429":
+          description: Too Many Requests
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RateLimitError" }
+        "503":
+          description: Service Unavailable
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /api/v1/support/feedback:
+    post:
+      tags: [Support]
+      summary: Submit feedback
+      description: Requires a valid user token. Returns created feedback id.
+      security: [{ bearerAuth: [] }, { safeModeHeader: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/FeedbackRequest" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, id]
+                properties:
+                  ok: { type: boolean, example: true }
+                  id: { type: integer, format: int64 }
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ValidationErrorResponse" }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UnauthorizedErrorResponse" }
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, reason]
+                properties:
+                  ok: { type: boolean, example: false }
+                  reason: { type: string, example: "Safe mode" }
+        "429":
+          description: Too Many Requests
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RateLimitError" }
+        "503":
+          description: Service Unavailable
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  # -------------------- LAWYERS (PUBLIC) --------------------
+  /api/v1/lawyers:
+    get:
+      tags: [Lawyers]
+      summary: List active lawyers (paginated)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: query
+          name: page
+          schema: { type: integer, minimum: 1, default: 1 }
+        - in: query
+          name: perPage
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PaginatedLawyersPublic" }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UnauthorizedErrorResponse" }
+
+  # -------------------- ADMIN (MISSING) --------------------
+  /api/v1/admin/lawyers/categories:
+    get:
+      tags: [Admin]
+      summary: List allowed lawyer categories (Admin only)
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { type: string }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UnauthorizedErrorResponse" }
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ForbiddenErrorResponse" }
+
+  /api/v1/admin/lawyers:
+    get:
+      tags: [Admin]
+      summary: List lawyers (Admin only, paginated)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: query
+          name: page
+          schema: { type: integer, minimum: 1, default: 1 }
+        - in: query
+          name: perPage
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PaginatedLawyersAdmin" }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UnauthorizedErrorResponse" }
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ForbiddenErrorResponse" }
+
+    post:
+      tags: [Admin]
+      summary: Create lawyer (Admin only)
+      description: Multipart form-data required. Profile picture file is mandatory.
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file, fullName, email, phone, category]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                fullName: { type: string }
+                email: { type: string, format: email }
+                phone: { type: string }
+                category: { type: string }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OkIdResponse" }
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UnauthorizedErrorResponse" }
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ForbiddenErrorResponse" }
+        "429":
+          description: Too Many Requests
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RateLimitError" }
+
+  /api/v1/admin/lawyers/{lawyerId}:
+    get:
+      tags: [Admin]
+      summary: Get lawyer by id (Admin only)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: lawyerId
+          required: true
+          schema: { type: integer, format: int64 }
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LawyerAdmin" }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UnauthorizedErrorResponse" }
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ForbiddenErrorResponse" }
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+    put:
+      tags: [Admin]
+      summary: Update lawyer (Admin only)
+      description: Supports multipart/form-data (optional file) or application/json.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: lawyerId
+          required: true
+          schema: { type: integer, format: int64 }
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file: { type: string, format: binary }
+                fullName: { type: string }
+                email: { type: string, format: email }
+                phone: { type: string }
+                category: { type: string }
+                isActive: { type: boolean }
+          application/json:
+            schema:
+              type: object
+              properties:
+                fullName: { type: string }
+                email: { type: string, format: email }
+                phone: { type: string }
+                category: { type: string }
+                isActive: { type: boolean }
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean, example: true }
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UnauthorizedErrorResponse" }
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ForbiddenErrorResponse" }
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "429":
+          description: Too Many Requests
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RateLimitError" }
+
+    delete:
+      tags: [Admin]
+      summary: Deactivate lawyer (Admin only)
+      description: |
+        Sets lawyer's `isActive` status to `false` (soft deactivation).
+        
+        **Note:** This does NOT delete the lawyer record. Deactivated lawyers:
+        - Are hidden from public lawyer list
+        - Retain all data for audit purposes
+        - Can be reactivated by admin
+        
+        **Idempotent:** Returns success even if already inactive.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: lawyerId
+          required: true
+          schema: { type: integer, format: int64 }
+      responses:
+        "200":
+          description: Lawyer deactivated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean, example: true }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UnauthorizedErrorResponse" }
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ForbiddenErrorResponse" }
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /api/v1/admin/contact-messages:
+    get:
+      tags: [Admin]
+      summary: List contact messages (Admin only, paginated)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: query
+          name: page
+          schema: { type: integer, minimum: 1, default: 1 }
+        - in: query
+          name: perPage
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PaginatedContactMessages" }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UnauthorizedErrorResponse" }
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ForbiddenErrorResponse" }
+
+  /api/v1/admin/contact-messages/{msgId}:
+    get:
+      tags: [Admin]
+      summary: Get contact message by id (Admin only)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: msgId
+          required: true
+          schema: { type: integer, format: int64 }
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ContactMessage" }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UnauthorizedErrorResponse" }
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ForbiddenErrorResponse" }
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /api/v1/admin/feedback:
+    get:
+      tags: [Admin]
+      summary: List feedback (Admin only, paginated)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: query
+          name: page
+          schema: { type: integer, minimum: 1, default: 1 }
+        - in: query
+          name: perPage
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PaginatedFeedbackList" }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UnauthorizedErrorResponse" }
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ForbiddenErrorResponse" }
+
+  /api/v1/admin/feedback/summary:
+    get:
+      tags: [Admin]
+      summary: Get feedback summary (Admin only)
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/FeedbackSummary" }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UnauthorizedErrorResponse" }
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ForbiddenErrorResponse" }
+
+  /api/v1/admin/feedback/{fbId}:
+    get:
+      tags: [Admin]
+      summary: Get feedback by id (Admin only)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: fbId
+          required: true
+          schema: { type: integer, format: int64 }
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/FeedbackDetail" }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UnauthorizedErrorResponse" }
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ForbiddenErrorResponse" }
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /api/v1/admin/feedback/{fbId}/read:
+    post:
+      tags: [Admin]
+      summary: Mark feedback as read (Admin only)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: fbId
+          required: true
+          schema: { type: integer, format: int64 }
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, isRead]
+                properties:
+                  ok: { type: boolean, example: true }
+                  isRead: { type: boolean, example: true }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UnauthorizedErrorResponse" }
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ForbiddenErrorResponse" }
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /api/v1/admin/feedback/{fbId}/unread:
+    post:
+      tags: [Admin]
+      summary: Mark feedback as unread (Admin only)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: fbId
+          required: true
+          schema: { type: integer, format: int64 }
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, isRead]
+                properties:
+                  ok: { type: boolean, example: true }
+                  isRead: { type: boolean, example: false }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UnauthorizedErrorResponse" }
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ForbiddenErrorResponse" }
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /api/v1/admin/notifications:
+    get:
+      tags: [Admin]
+      summary: List admin notifications (Admin only)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+        - in: query
+          name: before
+          schema: { type: integer, format: int64 }
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/NotificationsListResponse" }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UnauthorizedErrorResponse" }
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ForbiddenErrorResponse" }
+
+  /api/v1/admin/notifications/{notificationId}/read:
+    post:
+      tags: [Admin]
+      summary: Mark admin notification as read (Admin only)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: notificationId
+          required: true
+          schema: { type: integer, format: int64 }
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok]
+                properties:
+                  ok: { type: boolean, example: true }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UnauthorizedErrorResponse" }
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ForbiddenErrorResponse" }
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /api/v1/admin/notifications/unread-count:
+    get:
+      tags: [Admin]
+      summary: Get unread admin notifications count (Admin only)
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [count]
+                properties:
+                  count: { type: integer, example: 3 }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UnauthorizedErrorResponse" }
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ForbiddenErrorResponse" }
+
+  /api/v1/admin/notifications/stream:
+    get:
+      tags: [Admin]
+      summary: Stream admin notifications via SSE (Admin only)
+      description: |
+        Server-Sent Events stream for new admin notifications.
+        Use `last_id` to resume from the last seen notification.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: query
+          name: last_id
+          schema: { type: integer, format: int64 }
+      responses:
+        "200":
+          description: SSE stream
+          content:
+            text/event-stream:
+              schema:
+                type: string
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UnauthorizedErrorResponse" }
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ForbiddenErrorResponse" }
+  /api/v1/admin/rag/metrics/summary:
+    get:
+      tags: [Admin]
+      summary: Get RAG performance summary (Admin only)
+      description: |
+        Returns aggregated RAG metrics for monitoring and analytics.
+
+        **⚠️ Privacy Notice:** This endpoint aggregates user query data.
+        Admin access only.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: days
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 90
+            default: 7
+          description: Time range in days for metrics
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - type: object
+                    required: [period, totalQueries, summary]
+                    properties:
+                      period:
+                        type: string
+                        example: "Last 7 days"
+                      totalQueries:
+                        type: integer
+                        example: 0
+                      summary:
+                        type: string
+                        example: "No data available for this period"
+                  - type: object
+                    required:
+                      [
+                        period,
+                        totalQueries,
+                        decisions,
+                        quality,
+                        performance,
+                        tokens,
+                      ]
+                    properties:
+                      period:
+                        type: string
+                        example: "Last 7 days"
+                      totalQueries:
+                        type: integer
+                        example: 1523
+                      decisions:
+                        type: object
+                        required: [answer, outOfDomain, noHits]
+                        properties:
+                          answer:
+                            type: integer
+                            example: 1250
+                          outOfDomain:
+                            type: integer
+                            example: 180
+                          noHits:
+                            type: integer
+                            example: 93
+                      quality:
+                        type: object
+                        required:
+                          [
+                            inDomainRate,
+                            fallbackRate,
+                            errorRate,
+                            avgDistance,
+                            avgContextsUsed,
+                          ]
+                        properties:
+                          inDomainRate:
+                            type: number
+                            format: float
+                            example: 82.07
+                            description: "Percentage of queries that were in-domain"
+                          fallbackRate:
+                            type: number
+                            format: float
+                            example: 8.54
+                          errorRate:
+                            type: number
+                            format: float
+                            example: 0.13
+                          avgDistance:
+                            type: number
+                            format: float
+                            example: 0.8234
+                            description: "Average L2 distance for in-domain queries"
+                          avgContextsUsed:
+                            type: number
+                            format: float
+                            example: 4.2
+                      performance:
+                        type: object
+                        required: [avgTotalTimeMs, avgEmbeddingTimeMs, avgLlmTimeMs]
+                        properties:
+                          avgTotalTimeMs:
+                            type: number
+                            example: 2340
+                          avgEmbeddingTimeMs:
+                            type: number
+                            example: 450
+                          avgLlmTimeMs:
+                            type: number
+                            example: 1820
+                      tokens:
+                        type: object
+                        required: [totalUsed, avgPerQuery]
+                        properties:
+                          totalUsed:
+                            type: integer
+                            example: 456789
+                          avgPerQuery:
+                            type: number
+                            example: 312
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UnauthorizedErrorResponse" }
+        "403":
+          description: Forbidden (Admin only)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ForbiddenErrorResponse" }
+        "429":
+          description: Too Many Requests
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RateLimitError" }
+
+  /api/v1/admin/rag/metrics/queries:
+    get:
+      tags: [Admin]
+      summary: Get detailed query logs (Admin only)
+      description: |
+        Returns paginated list of individual RAG query evaluations with filters.
+
+        **⚠️ Privacy Notice:** Contains user questions (truncated to 200 chars).
+        Admin access only. Handle with care.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/PerPageParam"
+        - in: query
+          name: decision
+          schema:
+            type: string
+            enum: [ANSWER, OUT_OF_DOMAIN, NO_HITS]
+          description: "Filter by RAG decision type"
+        - in: query
+          name: inDomain
+          schema:
+            type: string
+            enum: ["true", "false"]
+          description: "Filter by in-domain status"
+        - in: query
+          name: minTime
+          schema:
+            type: integer
+            minimum: 0
+          description: "Filter queries slower than this (milliseconds)"
+        - in: query
+          name: days
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 90
+            default: 7
+          description: "Time range in days"
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, meta]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        [
+                          id,
+                          userId,
+                          language,
+                          safeMode,
+                          question,
+                          questionLength,
+                          decision,
+                          inDomain,
+                          usedFallback,
+                          contextsFound,
+                          contextsUsed,
+                          threshold,
+                          totalTimeMs,
+                          embeddingTimeMs,
+                          errorOccurred,
+                          createdAt,
+                        ]
+                      properties:
+                        id: { type: integer, example: 12345 }
+                        userId: { type: integer, example: 67 }
+                        conversationId:
+                          { type: integer, nullable: true, example: 890 }
+                        language: { type: string, example: "en" }
+                        safeMode: { type: boolean, example: false }
+                        question:
+                          type: string
+                          example: "What are the divorce laws in Pakistan..."
+                          description: "Truncated to 200 chars for list view"
+                        questionLength: { type: integer, example: 342 }
+                        decision:
+                          { type: string, example: "ANSWER" }
+                        inDomain: { type: boolean, example: true }
+                        usedFallback: { type: boolean, example: false }
+                        contextsFound: { type: integer, example: 5 }
+                        contextsUsed: { type: integer, example: 5 }
+                        threshold:
+                          { type: number, format: float, example: 1.2500 }
+                        bestDistance:
+                          {
+                            type: number,
+                            format: float,
+                            nullable: true,
+                            example: 0.7845,
+                          }
+                        totalTimeMs: { type: integer, example: 2340 }
+                        embeddingTimeMs: { type: integer, example: 450 }
+                        llmTimeMs:
+                          { type: integer, nullable: true, example: 1820 }
+                        totalTokens:
+                          { type: integer, nullable: true, example: 312 }
+                        errorOccurred: { type: boolean, example: false }
+                        errorType: { type: string, nullable: true }
+                        createdAt: { type: string, format: date-time }
+                  meta: { $ref: "#/components/schemas/PaginationMeta" }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UnauthorizedErrorResponse" }
+        "403":
+          description: Forbidden (Admin only)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ForbiddenErrorResponse" }
+        "429":
+          description: Too Many Requests
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RateLimitError" }
+
+  /api/v1/admin/rag/metrics/queries/{queryId}:
+    get:
+      tags: [Admin]
+      summary: Get full query evaluation details (Admin only)
+      description: |
+        Returns complete details of a specific RAG query evaluation.
+
+        **⚠️ Privacy Notice:** Contains full user question and AI answer.
+        Admin access only. Highly sensitive data.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: queryId
+          required: true
+          schema:
+            type: integer
+          description: "RAG evaluation log ID"
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  [
+                    id,
+                    userId,
+                    language,
+                    safeMode,
+                    question,
+                    answer,
+                    rag,
+                    performance,
+                    createdAt,
+                  ]
+                properties:
+                  id: { type: integer, example: 12345 }
+                  userId: { type: integer, example: 67 }
+                  conversationId:
+                    { type: integer, nullable: true, example: 890 }
+                  language: { type: string, example: "en" }
+                  safeMode: { type: boolean, example: false }
+                  isNewConversation:
+                    { type: boolean, nullable: true, example: false }
+                  question:
+                    type: object
+                    required: [text, length]
+                    properties:
+                      text: { type: string, description: "Full user question" }
+                      length: { type: integer, example: 342 }
+                  answer:
+                    type: object
+                    required: [text, length, usedFallback, disclaimerAdded]
+                    properties:
+                      text: { type: string, description: "Full AI answer" }
+                      length: { type: integer, example: 1523 }
+                      usedFallback: { type: boolean, example: false }
+                      disclaimerAdded: { type: boolean, example: true }
+                  rag:
+                    type: object
+                    required:
+                      [
+                        threshold,
+                        contextsFound,
+                        contextsUsed,
+                        inDomain,
+                        decision,
+                      ]
+                    properties:
+                      threshold:
+                        { type: number, format: float, example: 1.2500 }
+                      bestDistance:
+                        {
+                          type: number,
+                          format: float,
+                          nullable: true,
+                          example: 0.7845,
+                        }
+                      contextsFound: { type: integer, example: 5 }
+                      contextsUsed: { type: integer, example: 5 }
+                      inDomain: { type: boolean, example: true }
+                      decision:
+                        { type: string }
+                  sources:
+                    type: object
+                    required: [chunkIds, titles]
+                    properties:
+                      chunkIds:
+                        type: array
+                        items: { type: integer }
+                        example: [123, 456, 789]
+                      titles:
+                        type: array
+                        items: { type: string }
+                        example:
+                          [
+                            "Divorce Act 1869",
+                            "Muslim Family Laws Ordinance 1961",
+                          ]
+                  performance:
+                    type: object
+                    required: [embeddingTimeMs, totalTimeMs]
+                    properties:
+                      embeddingTimeMs: { type: integer, example: 450 }
+                      llmTimeMs:
+                        { type: integer, nullable: true, example: 1820 }
+                      totalTimeMs: { type: integer, example: 2340 }
+                  tokens:
+                    type: object
+                    properties:
+                      prompt: { type: integer, nullable: true, example: 245 }
+                      completion: { type: integer, nullable: true, example: 67 }
+                      total: { type: integer, nullable: true, example: 312 }
+                  models:
+                    type: object
+                    properties:
+                      embedding:
+                        { type: string, example: "text-embedding-3-large" }
+                      embeddingDimension:
+                        { type: integer, nullable: true, example: 3072 }
+                      chat:
+                        { type: string, nullable: true, example: "gpt-4o-mini" }
+                  error:
+                    type: object
+                    nullable: true
+                    properties:
+                      occurred: { type: boolean, example: false }
+                      type: { type: string, nullable: true }
+                      message: { type: string, nullable: true }
+                  createdAt: { type: string, format: date-time }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UnauthorizedErrorResponse" }
+        "403":
+          description: Forbidden (Admin only)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ForbiddenErrorResponse" }
+        "404":
+          description: Query log not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "429":
+          description: Too Many Requests
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RateLimitError" }

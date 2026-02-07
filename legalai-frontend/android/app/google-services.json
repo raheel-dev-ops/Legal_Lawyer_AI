@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1011844190364",
+    "project_id": "legalai-b363d",
+    "storage_bucket": "legalai-b363d.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1011844190364:android:8f02d1fad780d6f899dd59",
+        "android_client_info": {
+          "package_name": "com.legalai.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCR7CsbmPXh_wCZozQHAipQO1Yx0n6bylY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
