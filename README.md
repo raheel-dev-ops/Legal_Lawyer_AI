@@ -313,11 +313,11 @@ flutter devices
 ```
   4) Run from repo root:
   ```bash
-  flutter run -d BM4DLNNFWKMZHAY5 --dart-define-from-file=legalai-frontend/env.json
+  flutter run -d BM4DLN --dart-define-from-file=legalai-frontend/env.json
   ```
   Or from `legalai-frontend/`:
   ```bash
-  flutter run -d BM4DLNNFWKMZHAY5 --dart-define-from-file=env.json
+  flutter run -d BM4DLNN --dart-define-from-file=env.json
   ```
 
 ## Run on Web (Chrome)
