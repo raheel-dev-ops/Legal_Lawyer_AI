@@ -20,7 +20,7 @@ class User(db.Model):
     city = db.Column(db.String(120))
     gender = db.Column(db.String(30))
     age = db.Column(db.Integer)
-    province = db.Column(db.String(30), nullable=False, index=True)
+    province = db.Column(db.String(30), nullable=False, default="N/A", server_default="N/A", index=True)
     total_siblings = db.Column(db.Integer, default=0)
     brothers = db.Column(db.Integer, default=0)
     sisters = db.Column(db.Integer, default=0)
