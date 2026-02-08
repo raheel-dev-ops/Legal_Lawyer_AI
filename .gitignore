@@ -17,3 +17,7 @@ Thumbs.db
 
 # Logs
 *.log
+legalai-frontend\env.json
+legalai-backend\celerybeat-schedule.bak
+legalai-backend\celerybeat-schedule.dat
+legalai-backend\celerybeat-schedule.dir
