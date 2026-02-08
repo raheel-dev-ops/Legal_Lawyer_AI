@@ -1,4 +1,4 @@
-package com.legalai.app.legalai_frontend
+package com.legalai.app
 
 import io.flutter.embedding.android.FlutterActivity
 
